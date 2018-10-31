@@ -3,7 +3,10 @@
 // SETTINGS //
 
 // The text LCD names must contain to be used
-readonly static string LCD_GENERAL_TAG = "[LCD_GENERAL]";
+readonly static string LCD_ENERGY_TAG = "[LCD_ENERGY]";
+readonly static string LCD_GAS_TAG = "[LCD_GAS]";
+readonly static string LCD_CARGO_TAG = "[LCD_CARGO]";
+readonly static string LCD_ORE_TAG = "[LCD_ORE]";
 readonly static string LCD_MATERIAL_TAG = "[LCD_MATERIAL]";
 
 readonly static string AUTO_CLOSE_TAG = "[AUTO_CLOSE]";
@@ -14,6 +17,7 @@ readonly static bool IGNORE_STATUS = false;
 // Font settings
 readonly string FONT_STYLE = "Red";
 readonly float FONT_SIZE = 0.75f;
+readonly string headerSeparator = new string('-', 20);
 
 // Maximum possible output of Solar Panels
 readonly float SOLAR_PANEL_MAX = 0.12f;
@@ -34,16 +38,19 @@ List<IMyBatteryBlock> batteries = new List<IMyBatteryBlock>();
 List<IMySolarPanel> solarPanels = new List<IMySolarPanel>();
 List<IMyReactor> reactors = new List<IMyReactor>();
 List<IMyGasTank> gasTanks = new List<IMyGasTank>();
-List<IMyTextPanel> panels = new List<IMyTextPanel>();
 List<IMyGasGenerator> oxygenGenerators = new List<IMyGasGenerator>();
+List<IMyCargoContainer> cargoContainers = new List<IMyCargoContainer>();
+List<IMyJumpDrive> jumpDrives = new List<IMyJumpDrive>();
+List<IMyTextPanel> panels = new List<IMyTextPanel>();
+
 List<IMyDoor> autoCloseDoors = new List<IMyDoor>();
 
 Dictionary<string, DateTime> openDoorTimes = new Dictionary<string, DateTime>();
 
 Closures closures;
 
-double batteryCapacity;
 double batteryStored;
+double batteryCapacity;
 
 double solarOutputCurrent;
 double solarOutputMax;
@@ -53,17 +60,25 @@ double reactorOutputMax;
 
 double powerUsageCurrent;
 double powerUsageMax;
+int powerUsageCount;
 
-double oxygenCapacity;
 double oxygenStored;
+double oxygenCapacity;
 int oxygenTankCount;
 
-double hydrogenCapacity;
 double hydrogenStored;
+double hydrogenCapacity;
 int hydrogenTankCount;
 
+double maxJumpDistance;
+
+// Dictionary<string, CargoData> cargoContainerData = new Dictionary<string, CargoData>();
+
 public static readonly string[] LCD_TAGS = new[] {
-    LCD_GENERAL_TAG,
+    LCD_ENERGY_TAG,
+    LCD_GAS_TAG,
+    LCD_CARGO_TAG,
+    LCD_ORE_TAG,
     LCD_MATERIAL_TAG
 };
 
@@ -80,6 +95,8 @@ public void Main(string argument, UpdateType updateSource) {
 	checkSolarOutput();
     checkReactorOutput();
     checkGas();
+    checkCargo();
+	checkJumpDrives();
     updateDisplays();
 	checkDoors();
 	
@@ -100,6 +117,7 @@ private void checkBatteryCharge() {
 
 private void checkPowerUsage() {
     powerUsageCurrent = powerUsageMax = 0f;
+    powerUsageCount = 0;
     
     foreach (var item in blocks) {
         MyResourceSinkComponent sink;
@@ -114,6 +132,7 @@ private void checkPowerUsage() {
 
             powerUsageCurrent += currentInput;
             powerUsageMax += maxInput;
+            powerUsageCount++;
         }
     }
 }
@@ -174,6 +193,27 @@ private void checkGas() {
     }
 }
 
+private void checkCargo() {
+    getItemsOfType(blocks, cargoContainers);
+
+    // foreach (var item in cargoContainers) {
+    //     var inventory = item.GetInventory(0);
+    //     cargoContainers.Add(item.CustomName, new CargoData(inventory.CurrentMass, inventory.CurrentVolume, inventory.MaxVolume));
+    // }
+}
+
+private void checkJumpDrives() {
+	getItemsOfType(blocks, jumpDrives);
+	
+	if (jumpDrives.Count > 0) {
+		
+	}
+	
+	//foreach (var item in jumpDrives) {
+	//	string[] lines = item.DetailedInfo.ToString().Split('\n');
+	//}
+}
+
 private void updateDisplays() {
     GridTerminalSystem.GetBlocksOfType(panels, closures.LCDCollectorFunc);
 
@@ -185,71 +225,74 @@ private void updateDisplays() {
 		if (!item.Font.Contains(FONT_STYLE)) {
 			item.Font = FONT_STYLE;
 		}
-		
-        if (item.CustomName.Contains(LCD_GENERAL_TAG)) {
-            displayGeneral(item);
-        } else if (item.CustomName.Contains(LCD_MATERIAL_TAG)) {
 
+        string displayText = "";
+		
+        if (item.CustomData.Contains(LCD_ENERGY_TAG)) {
+            displayText += getEnergyStatsText();
         }
+
+        if (item.CustomData.Contains(LCD_GAS_TAG)) {
+            displayText += getGasStatsText();
+        }
+
+        if (item.CustomData.Contains(LCD_CARGO_TAG)) {
+            displayText += getCargoStatsText();
+        }
+
+        item.WritePublicText(displayText);
     }
 }
 
-private void displayGeneral(IMyTextPanel panel) {
-    string text = "";
-    string separator = new string('-', 20);
-	text += $"{separator} Power {separator}\n";
+private string getEnergyStatsText() {
+    string text = $"{headerSeparator} Power {headerSeparator}\n";
+    text += getPercentBarText("Reactors", reactors.Count, reactorOutputCurrent, reactorOutputMax, "MWh");
+    text += getPercentBarText("Solar Panels", solarPanels.Count, solarOutputCurrent, solarOutputMax, "MWh");
+    text += getPercentBarText("Batteries", batteries.Count, batteryStored, batteryCapacity, "MWh");
+    text += getPercentBarText("Usage", powerUsageCount, powerUsageCurrent, powerUsageMax, "MWh");
     
-    double reactorOutputPercentage = Math.Round((reactorOutputCurrent / reactorOutputMax) * 100.0f, 2);
-    text += $"Reactors ({reactors.Count}): {reactorOutputCurrent.ToString("0.00")}/{reactorOutputMax.ToString("0.00")} MWh\n";
-	text += getPercentBar(reactorOutputPercentage);
-	text += $" {reactorOutputPercentage}%\n";
-	
-	double solarOutputPercentage = Math.Round((solarOutputCurrent / solarOutputMax) * 100.0f, 2);
-    text += $"Solar Panels ({solarPanels.Count}): {solarOutputCurrent.ToString("0.00")}/{solarOutputMax.ToString("0.00")} MWh\n";
-	text += getPercentBar(solarOutputPercentage);
-	text += $" {solarOutputPercentage}%\n";
-    
-    double batteryPercentage = Math.Round((batteryStored / batteryCapacity) * 100.0f, 2);
-    text += $"Batteries ({batteries.Count}): {batteryStored.ToString("0.00")}/{batteryCapacity} MWh\n";
-	text += getPercentBar(batteryPercentage);
-	text += $" {batteryPercentage}%\n";
-	
-	double powerUsagePercentage = Math.Round((powerUsageCurrent / powerUsageMax) * 100.0f, 2);
-    text += $"Usage: {powerUsageCurrent.ToString("0.00")}/{powerUsageMax.ToString("0.00")} MWh\n";
-	text += getPercentBar(powerUsagePercentage);
-	text += $" {powerUsagePercentage}%\n";
-        
-    text += $"{separator} Gas {separator}\n";
-    
-    double oxygenPercentage = Math.Round((oxygenStored / oxygenCapacity) * 100.0f, 2);
-    text += $"Oxygen ({oxygenTankCount}): {oxygenStored.ToString("##,#.00")}/{oxygenCapacity.ToString("##,#")} L\n";
-	text += getPercentBar(oxygenPercentage);
-	text += $" {oxygenPercentage}%\n";
-    
-    double hydrogenPercentage = Math.Round((hydrogenStored / hydrogenCapacity) * 100.0f, 2);
-    text += $"Hydrogen ({hydrogenTankCount}): {hydrogenStored.ToString("##,#.00")}/{hydrogenCapacity.ToString("##,#")} L\n";
-	text += getPercentBar(hydrogenPercentage);
-	text += $" {hydrogenPercentage}%\n";
-    
-    panel.WritePublicText(text);
+    return text;
 }
 
-private void displayMaterial(IMyTextPanel panel) {
-    string text = "";
+private string getGasStatsText() {
+    string text = $"{headerSeparator} Gas {headerSeparator}\n";
+    text += getPercentBarText("Oxygen", oxygenTankCount, oxygenStored, oxygenCapacity, "L");
+    text += getPercentBarText("Hydrogen", hydrogenTankCount, hydrogenStored, hydrogenCapacity, "L");
 
-
-    
-    panel.WritePublicText(text);
+    return text;
 }
 
-private string getPercentBar(double percentage) {
-	int bars = (int)Math.Round(percentage);
-	string text = "[";
+private string getCargoStatsText() {
+    string text = $"{headerSeparator} Cargo Containers {headerSeparator}\n";
+    foreach (var item in cargoContainers) {
+        var inventory = item.GetInventory(0);
+        text += getAmountText("Mass", (double)inventory.CurrentMass, "kg");
+        text += getPercentBarText("Volume", 0, (double)inventory.CurrentVolume, (double)inventory.MaxVolume, "L");
+    }
+
+    return text;
+}
+
+private string getPercentBarText(string label, int blockCount, double current, double max, string unit) {
+    double percentage = Math.Round((current / max) * 100.0f, 2);
+    string text = label;
+    if (blockCount > 0) {
+        text += $" ({blockCount})";
+    }
+
+    text += $": {current.ToString("##,#.00")}/{max.ToString("##,#.00")} {unit}\n";
+
+    int bars = (int)Math.Round(percentage);
+	text += "[";
 	text += new string('|', bars);
 	text += new string('\'', 100 - bars);
-	text +="]";
+	text += $"] {percentage}%\n";
 	
 	return text;
+}
+
+private string getAmountText(string label, double amount, string unit) {
+    return $"{label}: {amount.ToString("##,#.00")} {unit}\n";
 }
 
 private void checkDoors() {
@@ -299,7 +342,7 @@ public static void getItemsOfTypeWithTag<T, TResult>(List<T> list, List<TResult>
     for (int i = 0; i < list.Count; i++) {
         var item = list[i];
 
-        if (item is TResult && item.CustomName.Contains(tag))
+        if (item is TResult && item.CustomData.Contains(tag))
             outList.Add((TResult)item);
     }
 }
@@ -335,5 +378,17 @@ class Closures {
 
     public bool IsValidBlock(IMyTerminalBlock block) => block.CubeGrid == BaseGrid && (block.IsFunctional || IGNORE_STATUS);
 
-    public bool IsValidLCD(IMyTextPanel lcd) => lcd.CubeGrid == BaseGrid && (lcd.IsFunctional || IGNORE_STATUS) && containsSubstring(LCD_TAGS, lcd.CustomName);
+    public bool IsValidLCD(IMyTextPanel lcd) => lcd.CubeGrid == BaseGrid && (lcd.IsFunctional || IGNORE_STATUS) && containsSubstring(LCD_TAGS, lcd.CustomData);
+}
+
+struct CargoData {
+    public double mass;
+    public double volumeCurrent;
+    public double volumeMax;
+
+    public CargoData(double mass, double volumeCurrent, double volumeMax) {
+        this.mass = mass;
+        this.volumeCurrent = volumeCurrent;
+        this.volumeMax = volumeMax;
+    }
 }
