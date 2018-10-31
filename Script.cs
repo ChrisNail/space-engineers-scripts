@@ -40,7 +40,9 @@ List<IMyReactor> reactors = new List<IMyReactor>();
 List<IMyGasTank> gasTanks = new List<IMyGasTank>();
 List<IMyGasGenerator> oxygenGenerators = new List<IMyGasGenerator>();
 List<IMyCargoContainer> cargoContainers = new List<IMyCargoContainer>();
+List<IMyJumpDrive> jumpDrives = new List<IMyJumpDrive>();
 List<IMyTextPanel> panels = new List<IMyTextPanel>();
+
 List<IMyDoor> autoCloseDoors = new List<IMyDoor>();
 
 Dictionary<string, DateTime> openDoorTimes = new Dictionary<string, DateTime>();
@@ -68,6 +70,8 @@ double hydrogenStored;
 double hydrogenCapacity;
 int hydrogenTankCount;
 
+double maxJumpDistance;
+
 // Dictionary<string, CargoData> cargoContainerData = new Dictionary<string, CargoData>();
 
 public static readonly string[] LCD_TAGS = new[] {
@@ -92,6 +96,7 @@ public void Main(string argument, UpdateType updateSource) {
     checkReactorOutput();
     checkGas();
     checkCargo();
+	checkJumpDrives();
     updateDisplays();
 	checkDoors();
 	
@@ -197,6 +202,18 @@ private void checkCargo() {
     // }
 }
 
+private void checkJumpDrives() {
+	getItemsOfType(blocks, jumpDrives);
+	
+	if (jumpDrives.Count > 0) {
+		
+	}
+	
+	//foreach (var item in jumpDrives) {
+	//	string[] lines = item.DetailedInfo.ToString().Split('\n');
+	//}
+}
+
 private void updateDisplays() {
     GridTerminalSystem.GetBlocksOfType(panels, closures.LCDCollectorFunc);
 
@@ -223,7 +240,7 @@ private void updateDisplays() {
             displayText += getCargoStatsText();
         }
 
-        panel.WritePublicText(displayText);
+        item.WritePublicText(displayText);
     }
 }
 
@@ -246,11 +263,11 @@ private string getGasStatsText() {
 }
 
 private string getCargoStatsText() {
-    string text = $"{headerSeparator} Cargo Containers {headerSeparator}";
+    string text = $"{headerSeparator} Cargo Containers {headerSeparator}\n";
     foreach (var item in cargoContainers) {
         var inventory = item.GetInventory(0);
-        text += getAmountText("Mass", inventory.CurrentMass, "kg");
-        text += getPercentBarText("Volume", 0, inventory.CurrentVolume, inventory.MaxVolume, "L");
+        text += getAmountText("Mass", (double)inventory.CurrentMass, "kg");
+        text += getPercentBarText("Volume", 0, (double)inventory.CurrentVolume, (double)inventory.MaxVolume, "L");
     }
 
     return text;
@@ -258,12 +275,12 @@ private string getCargoStatsText() {
 
 private string getPercentBarText(string label, int blockCount, double current, double max, string unit) {
     double percentage = Math.Round((current / max) * 100.0f, 2);
-    string text += label;
-    if (count > 0) {
-        text += $"({count})";
+    string text = label;
+    if (blockCount > 0) {
+        text += $" ({blockCount})";
     }
 
-    text += ": {current.ToString("##,#.00")}/{max.ToString("##,#.00")} {unit}\n";
+    text += $": {current.ToString("##,#.00")}/{max.ToString("##,#.00")} {unit}\n";
 
     int bars = (int)Math.Round(percentage);
 	text += "[";
@@ -275,7 +292,7 @@ private string getPercentBarText(string label, int blockCount, double current, d
 }
 
 private string getAmountText(string label, double amount, string unit) {
-    string text = $"{label}: {amount.ToString("##,#.00")} {unit}";
+    return $"{label}: {amount.ToString("##,#.00")} {unit}\n";
 }
 
 private void checkDoors() {
