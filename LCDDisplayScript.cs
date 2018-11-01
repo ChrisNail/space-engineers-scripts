@@ -3,15 +3,21 @@
 // SETTINGS //
 
 // The text LCD names must contain to be used
+readonly static string LCD_SHIP_TAG = "[LCD_SHIP_INFO]";
 readonly static string LCD_SOLAR_TAG = "[LCD_SOLAR]";
 readonly static string LCD_REACTOR_TAG = "[LCD_REACTOR]";
 readonly static string LCD_BATTERY_TAG = "[LCD_BATTERY]";
-readonly static string LCD_ENERGY_TAG = "[LCD_ENERGY_USAGE]";
+readonly static string LCD_POWER_TAG = "[LCD_POWER_USAGE]";
 readonly static string LCD_OXYGEN_TAG = "[LCD_OXYGEN]";
 readonly static string LCD_HYDROGEN_TAG = "[LCD_HYDROGEN]";
+readonly static string LCD_JUMP_TAG = "[LCD_JUMP]";
+
 readonly static string LCD_CARGO_TAG = "[LCD_CARGO]";
 readonly static string LCD_ORE_TAG = "[LCD_ORE]";
 readonly static string LCD_MATERIAL_TAG = "[LCD_MATERIAL]";
+
+readonly static string COCKPIT_CONTROL_TAG = "[COCKPIT_CONTROL]";
+
 
 // When true, will include blocks that are incomplete
 readonly static bool IGNORE_STATUS = false;
@@ -42,6 +48,10 @@ List<IMyGasGenerator> oxygenGenerators = new List<IMyGasGenerator>();
 List<IMyCargoContainer> cargoContainers = new List<IMyCargoContainer>();
 List<IMyJumpDrive> jumpDrives = new List<IMyJumpDrive>();
 List<IMyTextPanel> panels = new List<IMyTextPanel>();
+List<IMyCockpit> cockpits = new List<IMyCockpit>();
+List<IMyRemoteControl> remoteControls = new List<IMyRemoteControl>();
+
+IMyShipController shipController;
 
 Closures closures;
 
@@ -67,16 +77,17 @@ double hydrogenCapacity;
 int hydrogenTankCount;
 
 double maxJumpDistance;
-
-// Dictionary<string, CargoData> cargoContainerData = new Dictionary<string, CargoData>();
+Dictionary<string, JumpDriveData> jumpDriveStats = new Dictionary<string, JumpDriveData>();
 
 public static readonly string[] LCD_TAGS = new[] {
+    LCD_SHIP_TAG,
     LCD_SOLAR_TAG,
     LCD_REACTOR_TAG,
     LCD_BATTERY_TAG,
-    LCD_ENERGY_TAG,
+    LCD_POWER_TAG,
     LCD_OXYGEN_TAG,
     LCD_HYDROGEN_TAG,
+    LCD_JUMP_TAG,
     LCD_CARGO_TAG,
     LCD_ORE_TAG,
     LCD_MATERIAL_TAG
@@ -89,7 +100,8 @@ public Program() {
 }
 
 public void Main(string argument, UpdateType updateSource) {
-    GridTerminalSystem.GetBlocksOfType(blocks, closures.BlockCollectorFunc); 
+    GridTerminalSystem.GetBlocksOfType(blocks, closures.BlockCollectorFunc);
+    checkCockpits();
     checkBatteryCharge();
     checkPowerUsage();
 	checkSolarOutput();
@@ -203,12 +215,17 @@ private void checkJumpDrives() {
 	getItemsOfType(blocks, jumpDrives);
 	
 	if (jumpDrives.Count > 0) {
-		
-	}
-	
-	//foreach (var item in jumpDrives) {
-	//	string[] lines = item.DetailedInfo.ToString().Split('\n');
-	//}
+        string distanceText = System.Text.RegularExpressions.Regex.Match(jumpDrives[0].DetailedInfo, @"\d+\s*km").Value;
+        maxJumpDistance = double.Parse(distanceText.Split(' ')[0]);
+    }
+}
+
+private void checkCockpits() {
+    getItemsOfType(blocks, cockpits);
+
+    if (cockpits.Count > 0) {
+        shipController = cockpits[0] as IMyShipController;
+    }
 }
 
 private void updateDisplays() {
@@ -225,36 +242,69 @@ private void updateDisplays() {
 
         string displayText = "";
 
-        if (item.CustomData.Contains(LCD_SOLAR_TAG)) {
-            displayText += getSolarStatsText();
-        }
+        string customData = item.CustomData;
 
-        if (item.CustomData.Contains(LCD_REACTOR_TAG)) {
-            displayText += getReactorStatsText();
-        }
+        while (customData.Length > 3) {
+            var match = System.Text.RegularExpressions.Regex.Match(customData, @"\[\w+\]");
 
-        if (item.CustomData.Contains(LCD_BATTERY_TAG)) {
-            displayText += getBatteryStatsText();
-        }
+            if (!match.Success) {
+                break;
+            }
 
-        if (item.CustomData.Contains(LCD_ENERGY_TAG)) {
-            displayText += getEnergyStatsText();
-        }
+            if(match.Value.Equals(LCD_SHIP_TAG)) {
+                displayText += getShipStatsText();
+            }
 
-        if (item.CustomData.Contains(LCD_OXYGEN_TAG)) {
-            displayText += getOxygenStatsText();
-        }
+            if(match.Value.Equals(LCD_SOLAR_TAG)) {
+                displayText += getSolarStatsText();
+            }
 
-        if (item.CustomData.Contains(LCD_HYDROGEN_TAG)) {
-            displayText += getHydrogenText();
-        }
+            if(match.Value.Equals(LCD_REACTOR_TAG)) {
+                displayText += getReactorStatsText();
+            }
 
-        if (item.CustomData.Contains(LCD_CARGO_TAG)) {
-            displayText += getCargoStatsText();
+            if(match.Value.Equals(LCD_BATTERY_TAG)) {
+                displayText += getBatteryStatsText();
+            }
+
+            if(match.Value.Equals(LCD_POWER_TAG)) {
+                displayText += getPowerStatsText();
+            }
+
+            if(match.Value.Equals(LCD_OXYGEN_TAG)) {
+                displayText += getOxygenStatsText();
+            }
+
+            if(match.Value.Equals(LCD_HYDROGEN_TAG)) {
+                displayText += getHydrogenText();
+            }
+
+            if(match.Value.Equals(LCD_CARGO_TAG)) {
+                displayText += getCargoStatsText();
+            }
+
+            if(match.Value.Equals(LCD_JUMP_TAG)) {
+                displayText += getJumpDriveStatsText();
+            }
+
+            int tagIndex = customData.IndexOf(match.Value);
+            customData = customData.Remove(tagIndex, match.Value.Length);
         }
 
         item.WritePublicText(displayText);
     }
+}
+
+private string getShipStatsText() {
+    if (shipController == null) {
+        return "No valid cockpit to load ship data!";
+    }
+
+    MyShipMass mass = shipController.CalculateShipMass();
+    string text = getAmountText("Base Mass", mass.BaseMass, "kg");
+    text += getAmountText("Total Mass", mass.TotalMass, "kg");
+
+    return text;
 }
 
 private string getSolarStatsText() {
@@ -269,8 +319,8 @@ private string getBatteryStatsText() {
     return getPercentBarText("Batteries", batteries.Count, batteryStored, batteryCapacity, "MWh");
 }
 
-private string getEnergyStatsText() {
-    return getPercentBarText("Usage", powerUsageCount, powerUsageCurrent, powerUsageMax, "MWh");
+private string getPowerStatsText() {
+    return getPercentBarText("Power Usage", powerUsageCount, powerUsageCurrent, powerUsageMax, "MWh");
 }
 
 private string getOxygenStatsText() {
@@ -290,6 +340,10 @@ private string getCargoStatsText() {
     }
 
     return text;
+}
+
+private string getJumpDriveStatsText() {
+    return getAmountText("Max Jump", maxJumpDistance, "km");
 }
 
 private string getPercentBarText(string label, int blockCount, double current, double max, string unit) {
@@ -379,4 +433,16 @@ class Closures {
     public bool IsValidBlock(IMyTerminalBlock block) => block.CubeGrid == BaseGrid && (block.IsFunctional || IGNORE_STATUS);
 
     public bool IsValidLCD(IMyTextPanel lcd) => lcd.CubeGrid == BaseGrid && (lcd.IsFunctional || IGNORE_STATUS) && containsSubstring(LCD_TAGS, lcd.CustomData);
+}
+
+struct JumpDriveData {
+    public int rechargedIn; // Number of seconds before fully charged
+    public double currentInput; //W
+    public double storedPower; //MWh
+
+    public JumpDriveData(int rechargedIn, double currentInput, double storedPower) {
+        this.rechargedIn = rechargedIn;
+        this.currentInput = currentInput;
+        this.storedPower = storedPower;
+    }
 }
