@@ -1,6 +1,11 @@
 ﻿// Ship Management Script //
 
 // SETTINGS //
+// Activate dampeners when no one is controlling the ship
+readonly static bool DEADMAN_SWITCH = false;
+// Prevent oxygen generators from filling up all oxygen tanks
+readonly static bool OXYGEN_CONTROL = false;
+
 // When true, will include blocks that are incomplete
 readonly static bool IGNORE_STATUS = false;
 
@@ -14,6 +19,7 @@ readonly string[] oxygenTankSubtypes = new[] { "", "OxygenTankSmall" };
 
 List<IMyGasTank> gasTanks = new List<IMyGasTank>();
 List<IMyGasGenerator> oxygenGenerators = new List<IMyGasGenerator>();
+List<IMyShipController> shipControllers = new List<IMyShipController>();
 
 Closures closures;
 
@@ -28,9 +34,33 @@ public Program() {
 
 public void Main(string argument, UpdateType updateSource) {
     manageGas();
+    checkShipController();
+}
+
+private void checkShipController() {
+    if (!DEADMAN_SWITCH) {
+        return;
+    }
+
+    getItemsOfType(blocks, shipControllers);
+
+    if(shipControllers.Count > 0) {
+        bool isControlled = false;
+        foreach(var item in shipControllers) {
+            isControlled = isControlled || item.IsUnderControl;
+        }
+
+        if(!isControlled && !shipControllers[0].DampenersOverride) {
+            shipControllers[0].ApplyAction("DampenersOverride");
+        }
+    }
 }
 
 private void manageGas() {
+    if (!OXYGEN_CONTROL) {
+        return;
+    }
+
     oxygenCapacity = oxygenStored = 0f;
 
     getItemsOfType(blocks, gasTanks);

@@ -57,6 +57,9 @@ Closures closures;
 
 double shipSpeed;
 double previousShipSpeed;
+double shipAcceleration;
+double shipStopTime;
+double shipStopDistance;
 MyShipMass shipMass;
 double altitudeSeaLevel;
 double altitudeSurface;
@@ -132,6 +135,15 @@ private void checkShipController() {
         shipMass = shipControllers[0].CalculateShipMass();
         previousShipSpeed = shipSpeed;
         shipSpeed = shipControllers[0].GetShipSpeed();
+        shipAcceleration = previousShipSpeed - shipSpeed;
+
+        if (shipAcceleration < 0.0) {
+            shipStopTime = (-1.0 * shipSpeed) / shipAcceleration;
+        } else {
+            shipStopTime = 0.0;
+        }
+
+        shipStopDistance = (shipSpeed / 2.0) * shipStopTime;
 
         Vector3D planetPosition = new Vector3D();
         bool planetSuccess = shipControllers[0].TryGetPlanetPosition(out planetPosition);
@@ -334,13 +346,14 @@ private string getShipMassText() {
     return text;
 }
 
-private string getShipSpeedSimpleText() {
+private string getShipSpeedText() {
     return getAmountText("Speed", shipSpeed, "m/s");
 }
 
-private string getShipSpeedText() {
-    string text = getAmountText("Speed", shipSpeed, "m/s");
-    text += getAmountText("Acceleration", shipSpeed - previousShipSpeed, "m/s\xB2");
+private string getShipAccelerationText() {
+    string text = getAmountText("Acceleration", shipAcceleration, "m/s\xB2");
+    text += getAmountText("Stop Time", shipStopTime, "s");
+    text += getAmountText("Stop Distance", shipStopDistance, "m");
 
     return text;
 }
@@ -397,8 +410,8 @@ private string getGravityText() {
     return text;
 }
 
-private string getSeparatorText() {
-    return headerSeparator;
+private string getSeparatorText(string title) {
+    return $"{headerSeparator} {title} {headerSeparator}";
 }
 
 private string getPercentBarText(string label, int blockCount, double current, double max, string unit) {
