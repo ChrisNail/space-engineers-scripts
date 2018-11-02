@@ -33,8 +33,6 @@ readonly string headerSeparator = new string('-', 20);
 
 // Maximum possible output of Solar Panels
 readonly float SOLAR_PANEL_MAX = 0.12f;
-// Oxygen storage percentage before shutting off generators, between 0.0 and 1.0
-readonly float OXYGEN_MAX = 0.85f;
 
 // Gas Tank Subtypes - add to this if you have modded subtypes
 readonly string[] oxygenTankSubtypes = new[] { "", "OxygenTankSmall" };
@@ -58,6 +56,7 @@ List<IMyRemoteControl> remoteControls = new List<IMyRemoteControl>();
 Closures closures;
 
 double shipSpeed;
+double previousShipSpeed;
 MyShipMass shipMass;
 double altitudeSeaLevel;
 double altitudeSurface;
@@ -134,12 +133,12 @@ private void checkShipController() {
         previousShipSpeed = shipSpeed;
         shipSpeed = shipControllers[0].GetShipSpeed();
 
-        Vector3D planetPosition = null;
-        bool planetSuccess = shipControllers[0].TryGetPlanetPosition(planetPosition);
+        Vector3D planetPosition = new Vector3D();
+        bool planetSuccess = shipControllers[0].TryGetPlanetPosition(out planetPosition);
 
         if (planetSuccess) {
-            shipControllers[0].TryGetPlanetElevation(MyPlanetElevation.Sealevel, altitudeSeaLevel);
-            shipControllers[0].TryGetPlanetElevation(MyPlanetElevation.Surface, altitudeSurface);
+            shipControllers[0].TryGetPlanetElevation(MyPlanetElevation.Sealevel, out altitudeSeaLevel);
+            shipControllers[0].TryGetPlanetElevation(MyPlanetElevation.Surface, out altitudeSurface);
         }
     }
 }
@@ -329,10 +328,6 @@ private void updateDisplays() {
 }
 
 private string getShipMassText() {
-    if (shipMass == null) {
-        return "No valid ship controller to load ship data!";
-    }
-
     string text = getAmountText("Base Mass", shipMass.BaseMass, "kg");
     text += getAmountText("Total Mass", shipMass.TotalMass, "kg");
 
