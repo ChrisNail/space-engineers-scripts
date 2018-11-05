@@ -1,4 +1,4 @@
-# Space Engineers Ship Management Script
+# Space Engineers Scripts
 Several in-game scripts for Space Engineers for automatically managing a large ship
 
 ## Features

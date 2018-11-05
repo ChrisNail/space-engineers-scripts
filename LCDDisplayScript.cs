@@ -85,6 +85,10 @@ double hydrogenStored;
 double hydrogenCapacity;
 int hydrogenTankCount;
 
+double cargoMass;
+double cargoVolumeCurrent;
+double cargoVolumeMax;
+
 double maxJumpDistance = 0;
 Dictionary<string, JumpDriveData> jumpDriveStats = new Dictionary<string, JumpDriveData>();
 
@@ -232,10 +236,15 @@ private void checkGas() {
 }
 
 private void checkCargo() {
+    cargoMass = cargoVolumeCurrent = cargoVolumeMax = 0.0;
+
     getItemsOfType(blocks, cargoContainers);
 
-    foreach (var item in cargoContainers) {
-        //var inventory = item.GetInventory(0).GetItems();
+    foreach (var container in cargoContainers) {
+        var inventory = container.GetInventory(0);
+        cargoMass += inventory.CurrentMass;
+        cargoVolumeCurrent = inventory.CurrentVolume;
+        cargoVolumeMax = inventory.MaxVolume;
     }
 }
 
@@ -316,7 +325,7 @@ private void updateDisplays() {
             }
 
             if (match.Value.Equals(LCD_CARGO_TAG)) {
-                displayText += getCargoText();
+                displayText += getCargoOverviewText();
             }
 
             if (match.Value.Equals(LCD_JUMP_TAG)) {
@@ -389,13 +398,9 @@ private string getHydrogenText() {
     return getPercentBarText("Hydrogen", hydrogenTankCount, hydrogenStored, hydrogenCapacity, "L");
 }
 
-private string getCargoText() {
-    string text = $"{headerSeparator} Cargo Containers {headerSeparator}\n";
-    foreach (var item in cargoContainers) {
-        var inventory = item.GetInventory(0);
-        text += getAmountText("Mass", (double)inventory.CurrentMass, "kg");
-        text += getPercentBarText("Volume", 0, (double)inventory.CurrentVolume, (double)inventory.MaxVolume, "L");
-    }
+private string getCargoOverviewText() {
+    string text = getAmountText("Cargo Mass", cargoMass, "kg");
+    text += getPercentBarText("Cargo Volume", cargoContainers.Count, cargoVolumeCurrent, cargoVolumeMax, "L");
 
     return text;
 }
